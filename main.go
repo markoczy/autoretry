@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"os/exec"
 	"time"
@@ -15,12 +16,13 @@ func main() {
 
 	timeout := *timeoutFlag
 	nolog := *nologFlag
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
 	args := flag.Args()
 	for {
-		err := exec.CommandContext(ctx, args[0], args[1:]...).Run()
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		out, err := exec.CommandContext(ctx, args[0], args[1:]...).Output()
 		if err == nil {
+			fmt.Println(string(out))
 			return
 		}
 		if !nolog {
