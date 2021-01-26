@@ -2,29 +2,26 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
 
 	"github.com/atotto/clipboard"
+	"github.com/markoczy/xtools/common/helpers"
 )
 
 func main() {
-	input := os.Stdin
-	stat, err := input.Stat()
-	check(err)
+	input, err := helpers.ReadStdin()
 
 	// Read mode
-	if stat.Mode()&os.ModeNamedPipe == 0 {
+	if helpers.IsNoValue(err) {
 		str, err := clipboard.ReadAll()
 		check(err)
 		fmt.Print(str)
 		return
 	}
+	check(err)
 
 	// Write Mode
-	data, err := ioutil.ReadAll(input)
+	clipboard.WriteAll(input)
 	check(err)
-	clipboard.WriteAll(string(data))
 }
 
 func check(err error) {
