@@ -54,7 +54,7 @@ func parseFlags() (config, error) {
 	jpathEx := flags.NewSwitchable("$")
 	xpathEx := flags.NewSwitchable("/")
 	ypathEx := flags.NewSwitchable("$")
-	format := flags.NewEnum([]string{"go", "json", "xml", "yml", "plain"}, "plain")
+	format := flags.NewEnum([]string{"go", "json", "xml", "yml", "yaml", "plain"}, "plain")
 
 	xmlTextFieldPtr := flag.String("xml-text-field", "@text", "(Only applies when parsing xml) Field name for inner text when parsing XML to map-like structure")
 	xmlChildPrefixPtr := flag.String("xml-child-prefix", "", "(Only applies when parsing xml) Prefix for children when XML to map-like structure")
@@ -107,6 +107,8 @@ func parseFlags() (config, error) {
 	case "xml":
 		ret.FormatMode = modeXml
 	case "yml":
+		ret.FormatMode = modeYml
+	case "yaml":
 		ret.FormatMode = modeYml
 	case "go":
 		ret.FormatMode = modeGo
@@ -167,6 +169,10 @@ func main() {
 		s = fmt.Sprintf("%v", val)
 	case modePlain:
 		s = formatPlain(val)
+	case modeJson:
+		s = formatJson(val)
+	case modeYml:
+		s = formatYaml(val)
 	}
 
 	fmt.Println(s)
@@ -268,6 +274,12 @@ func parseJson(input string, cfg config) interface{} {
 	res, err := jsonpath.JsonPathLookup(jsonData, cfg.Path)
 	check(err)
 	return res
+}
+
+func formatJson(val interface{}) string {
+	ret, err := json.MarshalIndent(val, "", "  ")
+	check(err)
+	return string(ret)
 }
 
 //==============================================================================
@@ -429,6 +441,12 @@ func yamlDecode(n *yaml.Node) interface{} {
 		return mp
 	}
 	panic("Could not decode yaml value")
+}
+
+func formatYaml(val interface{}) string {
+	ret, err := yaml.Marshal(val)
+	check(err)
+	return string(ret)
 }
 
 //==============================================================================
