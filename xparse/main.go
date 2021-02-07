@@ -249,16 +249,42 @@ func formatPlainMap(m reflect.Value) []string {
 // Regex
 //==============================================================================
 
-func parseRegex(input string, cfg config) []string {
+func parseRegex(input string, cfg config) interface{} {
 	filterRx := regexp.MustCompile(cfg.Path)
-	r := regexp.MustCompile(`\r?\n`)
+	if len(filterRx.SubexpNames()) > 0 {
+		return parseRegexWithCaptureGroups(filterRx, input, cfg)
+	}
+	return parseRegexWithoutCaptureGroups(filterRx, input, cfg)
+}
 
+func parseRegexWithoutCaptureGroups(rx *regexp.Regexp, input string, cfg config) []string {
+	r := regexp.MustCompile(`\r?\n`)
 	split := r.Split(input, -1)
 	ret := []string{}
 	for _, v := range split {
-		if filterRx.MatchString(v) {
+		if rx.MatchString(v) {
 			ret = append(ret, v)
 		}
+	}
+	return ret
+}
+
+func parseRegexWithCaptureGroups(rx *regexp.Regexp, input string, cfg config) []map[string]string {
+	r := regexp.MustCompile(`\r?\n`)
+	split := r.Split(input, -1)
+	ret := []map[string]string{}
+	for _, v := range split {
+		if !rx.MatchString(v) {
+			continue
+		}
+		cur := map[string]string{}
+		match := rx.FindStringSubmatch(v)
+		for i, name := range rx.SubexpNames() {
+			if i != 0 && name != "" {
+				cur[name] = match[i]
+			}
+		}
+		ret = append(ret, cur)
 	}
 	return ret
 }
