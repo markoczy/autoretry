@@ -14,9 +14,9 @@ func (f *Switchable) Set(val string) error {
 	return nil
 }
 
-func (f *Switchable) IsBoolFlag() bool {
-	return true
-}
+// func (f *Switchable) IsBoolFlag() bool {
+// 	return true
+// }
 
 func (f *Switchable) Defined() bool {
 	return f.defined

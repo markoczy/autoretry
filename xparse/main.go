@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"reflect"
 	"regexp"
 	"strings"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/antchfx/xpath"
 	"github.com/markoczy/xtools/common/flags"
 	"github.com/markoczy/xtools/common/helpers"
+	"github.com/markoczy/xtools/common/logger"
 	"github.com/oliveagle/jsonpath"
 	"github.com/vmware-labs/yaml-jsonpath/pkg/yamlpath"
 	"gopkg.in/yaml.v3"
@@ -25,17 +27,28 @@ const (
 	modeJson
 	modeXml
 	modeYml
+	modeGo
 )
 
+var log logger.Logger
+
 type config struct {
-	ParseMode   mode
-	FormatMode  mode
-	Path        string
-	XmlTextName string
+	ParseMode  mode
+	FormatMode mode
+	Path       string
+	// XML specific
+	XmlTextField   string
+	XmlChildPrefix string
+	XmlAttrPrefix  string
+}
+
+func (c config) String() string {
+	return fmt.Sprintf("config: [ParseMode: %v, FormatMode: %v, Path: %v, XmlTextField: %v, XmlChildPrefix: %v, XmlAttrPrefix: %v]", c.ParseMode, c.FormatMode, c.Path, c.XmlTextField, c.XmlChildPrefix, c.XmlAttrPrefix)
 }
 
 func parseFlags() (config, error) {
 	ret := config{}
+	logFactory := logger.NewAutoFlagFactory()
 
 	regEx := flags.NewSwitchable(".*")
 	jpathEx := flags.NewSwitchable("$")
@@ -43,25 +56,23 @@ func parseFlags() (config, error) {
 	ypathEx := flags.NewSwitchable("$")
 	format := flags.NewEnum([]string{"go", "json", "xml", "yml", "plain"}, "plain")
 
-	flag.Var(regEx, "regex", "Switch to Regular Expression mode and optionally input a regex expression")
-	flag.Var(jpathEx, "json", "Switch to JSON mode and optionally input a JsonPath expression")
-	flag.Var(xpathEx, "xml", "Switch to XML mode and optionally input a XPath expression")
-	flag.Var(ypathEx, "yaml", "Switch to YAML mode and optionally input a XPath expression")
+	xmlTextFieldPtr := flag.String("xml-text-field", "@text", "(Only applies when parsing xml) Field name for inner text when parsing XML to map-like structure")
+	xmlChildPrefixPtr := flag.String("xml-child-prefix", "", "(Only applies when parsing xml) Prefix for children when XML to map-like structure")
+	xmlAttrPrefixPtr := flag.String("xml-attr-prefix", "", "(Only applies when parsing xml) Prefix for attribute fields when paring XML to map-like structure")
+
+	flag.Var(regEx, "regex", "Switch to Regular Expression mode and input a regex expression")
+	flag.Var(jpathEx, "json", "Switch to JSON mode and input a JsonPath expression")
+	flag.Var(xpathEx, "xml", "Switch to XML mode and input a XPath expression")
+	flag.Var(ypathEx, "yaml", "Switch to YAML mode and input a XPath expression")
 	flag.Var(format, "format", "Format parsed value to another output, possible values are 'go', 'json', 'xml', 'yml', 'plain'")
 
-	// parseRegex := flag.String("regex", ".*", "Switch to Regular Expression mode and input a regex expression")
-	// parseJson := flag.String("json", "$", "Switch to json mode and input a JsonPath expression")
-	// parseXml := flag.String("xml", "//", "Switch to xml mode and input a XPath expression")
-	// format := flag.String("format", "default", "Format parsed value to another output, possible values are 'go', 'json', 'xml', 'yml', 'default'")
-
-	// formatGo := flag.Bool("to-go", false, "Format parsed value to Golang output instead of default")
+	logFactory.InitFlags()
 	flag.Parse()
-	// fmt.Println(err)
 
-	// flag.Usage = func() {
-	// 	fmt.Println("Usage of xparse: xparse [-json|-regex|-xml] [-to-json|-to-go|-to-yml] path")
-	// 	flag.PrintDefaults()
-	// }
+	ret.XmlTextField = *xmlTextFieldPtr
+	ret.XmlChildPrefix = *xmlChildPrefixPtr
+	ret.XmlAttrPrefix = *xmlAttrPrefixPtr
+	log = logFactory.Create()
 
 	exCount := 0
 	if regEx.Defined() {
@@ -97,27 +108,29 @@ func parseFlags() (config, error) {
 		ret.FormatMode = modeXml
 	case "yml":
 		ret.FormatMode = modeYml
+	case "go":
+		ret.FormatMode = modeGo
+	default:
+		ret.FormatMode = modePlain
 	}
-
-	// if *modeRegex {
-	// 	ret.ParseMode = parseRegex
-	// }
-	// if *modeJson {
-	// 	ret.ParseMode = parseJson
-	// }
-	// if *modeXml {
-	// 	ret.ParseMode = parseXml
-	// }
 
 	args := flag.Args()
-	if len(args) == 1 {
-		ret.Path = args[0]
-	} else if len(args) > 1 {
+	if ret.ParseMode == modePlain {
+		switch len(args) {
+		case 0:
+			ret.Path = ""
+		case 1:
+			ret.Path = args[0]
+		default:
+			fmt.Println("Be sure to define flags before the path. Only one trailing argument is allowed for mode plain:", args[1:])
+			flag.Usage()
+			os.Exit(1)
+		}
+	} else if len(args) != 0 {
+		fmt.Println("No trailing arguments allowed for when mode is not plain:", args[1:])
 		flag.Usage()
-		fmt.Println("\n> Be sure to define flags before the path. Trailing arguments:", args[1:])
 		os.Exit(1)
 	}
-	// ret.FormatJson = *formatJson
 
 	return ret, nil
 }
@@ -129,55 +142,44 @@ func main() {
 		fmt.Println("\n> ", err)
 	}
 
-	fmt.Println(cfg)
+	log.Debug("Config: %v", cfg)
 
 	d, err := helpers.ReadStdin()
 	check(err)
 
+	var val interface{}
 	switch cfg.ParseMode {
 	case modePlain:
-		r := parsePlain(d, cfg)
-		fmt.Println(r)
+		val = parsePlain(d, cfg)
 	case modeRegex:
-		r := parseRegex(d, cfg)
-		fmt.Println(r)
+		val = parseRegex(d, cfg)
 	case modeJson:
-		r := parseJson(d, cfg)
-		fmt.Println(r)
+		val = parseJson(d, cfg)
 	case modeXml:
-		r := parseXml(d, cfg)
-		fmt.Println(r)
+		val = parseXml(d, cfg)
 	case modeYml:
-		r := parseYaml(d, cfg)
-		fmt.Println(r)
+		val = parseYaml(d, cfg)
 	}
 
-	// res, err := jsonpath.JsonPathLookup(jsonData, cfg.Path)
-	// check(err)
-
-	// if cfg.FormatJson {
-	// 	data, err := json.Marshal(res)
-	// 	check(err)
-	// 	fmt.Println(string(data))
-	// 	return
-	// }
-	// fmt.Println(res)
-}
-
-// func parseJson() interface{} {
-
-// }
-
-func check(err error) {
-	if err != nil {
-		panic(err)
+	s := ""
+	switch cfg.FormatMode {
+	case modeGo:
+		s = fmt.Sprintf("%v", val)
+	case modePlain:
+		s = formatPlain(val)
 	}
+
+	fmt.Println(s)
 }
 
-func parsePlain(input string, cfg config) []string {
+//==============================================================================
+// Plain
+//==============================================================================
+
+func parsePlain(input string, cfg config) []interface{} {
 	r := regexp.MustCompile(`\r?\n`)
 	split := r.Split(input, -1)
-	ret := []string{}
+	ret := []interface{}{}
 	for _, v := range split {
 		if strings.Contains(v, cfg.Path) {
 			ret = append(ret, v)
@@ -185,6 +187,61 @@ func parsePlain(input string, cfg config) []string {
 	}
 	return ret
 }
+
+func formatPlain(val interface{}) string {
+	ret := formatPlainVal(reflect.ValueOf(val))
+	return strings.Join(ret, "\r\n")
+}
+
+func formatPlainVal(val reflect.Value) []string {
+	log.Debug("*** Cur: %v", val)
+	log.Debug("*** Kind: %v", val.Kind())
+
+	switch val.Kind() {
+	case reflect.Array:
+		val.InterfaceData()
+		return []string{fmt.Sprintf("%v", val.Interface())} //? works???
+	case reflect.Slice:
+		return formatPlainSlice(val)
+	case reflect.Map:
+		return formatPlainMap(val)
+	case reflect.Interface:
+		k := reflect.ValueOf(val.Interface())
+		log.Debug("*** New Kind: %v", k.Kind())
+		if k.Kind() == reflect.Interface {
+			return []string{fmt.Sprintf("%v", val.Interface())}
+		}
+		return formatPlainVal(k)
+	default:
+		log.Debug("*** Leaf Value: %s", fmt.Sprintf("%v", val.Interface()))
+		return []string{fmt.Sprintf("%v", val.Interface())} //? works???
+	}
+}
+
+func formatPlainSlice(slice reflect.Value) []string {
+	ret := []string{}
+	for i := 0; i < slice.Len(); i++ {
+		v := slice.Index(i)
+		log.Debug("Found next value in slice %v", v)
+		ret = append(ret, formatPlainVal(v)...)
+	}
+	return ret
+}
+
+func formatPlainMap(m reflect.Value) []string {
+	ret := []string{}
+	it := m.MapRange()
+	for it.Next() {
+		log.Debug("*** Found next in map %v", it.Value())
+		// we currently ignore the keys when formatting a map
+		ret = append(ret, formatPlainVal(it.Value())...)
+	}
+	return ret
+}
+
+//==============================================================================
+// Regex
+//==============================================================================
 
 func parseRegex(input string, cfg config) []string {
 	filterRx := regexp.MustCompile(cfg.Path)
@@ -200,6 +257,10 @@ func parseRegex(input string, cfg config) []string {
 	return ret
 }
 
+//==============================================================================
+// JSON
+//==============================================================================
+
 func parseJson(input string, cfg config) interface{} {
 	var jsonData interface{}
 	err := json.Unmarshal([]byte(input), &jsonData)
@@ -209,51 +270,136 @@ func parseJson(input string, cfg config) interface{} {
 	return res
 }
 
+//==============================================================================
+// XML
+//==============================================================================
+
 func parseXml(input string, cfg config) interface{} {
-	// xpath.
-	fmt.Println(input)
+	log.Debug("Input: %s", input)
 	doc, err := xmlquery.Parse(strings.NewReader(input))
 	check(err)
 	expr, err := xpath.Compile(cfg.Path)
 	check(err)
-	// nodes := xmlquery.Find(doc, path)
-	// nodes[0].
-	// expr.Select()
 
 	ret := expr.Evaluate(xmlquery.CreateXPathNavigator(doc))
 	switch v := ret.(type) {
 	case bool:
-		fmt.Println("bool")
 		return v
 	case float64:
-		fmt.Println("float")
 		return v
 	case string:
-		fmt.Println("string")
 		return v
 	case *xpath.NodeIterator:
-		fmt.Println("nodeiterator")
-
+		log.Info("Found nodeIterator, decoding")
 		return xmlDecode(v, cfg)
-		// v.MoveNext()
-
-		// v.MoveNext()
-		// v.Current().NodeType()
-		// fmt.Println(v.Current().Value())
-		// fmt.Println(v.Current())
 	default:
-		fmt.Println(v)
-
-		// v.Current()
-		// v.Current().
-
+		log.Error("Unhandled node type: %", v)
 	}
 	return nil
-
 }
 
+func xmlDecode(it *xpath.NodeIterator, cfg config) interface{} {
+	ret := []interface{}{}
+	for it.MoveNext() {
+		_, val := parseXmlNode(it.Current(), cfg)
+		log.Debug("xmlDecode Val is: %v", val)
+		if val != nil {
+			ret = append(ret, val)
+		}
+	}
+	switch len(ret) {
+	case 0:
+		return nil
+	case 1:
+		return ret[0]
+	default:
+		return ret
+	}
+}
+
+func parseXmlNode(node xpath.NodeNavigator, cfg config) (string, interface{}) {
+	log.Debug("parseXmlNode, type = %v", node.NodeType())
+	switch node.NodeType() {
+	case xpath.TextNode:
+		log.Debug("parseXmlNode found TextNode, value: %s", node.Value())
+		if isNormalizedEmpty(node.Value()) {
+			// ignore text between nodes
+			return "", nil
+		}
+		return cfg.XmlTextField, node.Value()
+	case xpath.RootNode:
+		// TODO root node should not be named
+		log.Debug("parseXmlNode found RootNode")
+		name := "@root"
+		k := []interface{}{}
+		k = append(k, parseXmlElementNode(node, cfg))
+		for node.MoveToNext() {
+			k = append(k, parseXmlElementNode(node, cfg))
+		}
+		if len(k) == 1 {
+			return name, k[0]
+		}
+		return name, k
+	case xpath.ElementNode:
+		name := node.LocalName()
+		log.Debug("parseXmlNode found ElementNode, name: %s", name)
+		k := []map[string]interface{}{}
+		k = append(k, parseXmlElementNode(node, cfg))
+		log.Debug("parseXmlNode ElementNode value %v", k[0])
+		return cfg.XmlChildPrefix + name, k[0]
+	case xpath.AttributeNode:
+		log.Debug("Attribute node Name: %s, Value: %s", node.LocalName(), node.Value())
+		return node.LocalName(), node.Value()
+	default:
+		return "", nil
+	}
+}
+
+func parseXmlElementNode(node xpath.NodeNavigator, cfg config) map[string]interface{} {
+	ret := map[string]interface{}{}
+	for node.MoveToNextAttribute() {
+		log.Debug("parseXmlElementNode attribute %s %s", node.LocalName(), node.Value())
+		ret[cfg.XmlAttrPrefix+node.LocalName()] = node.Value()
+	}
+	if node.NodeType() == xpath.AttributeNode {
+		node.MoveToParent()
+	}
+	if node.MoveToChild() {
+		name, cur := parseXmlNode(node, cfg)
+		log.Debug("parseXmlElementNode child %s %v", name, cur)
+		if cur != nil {
+			ret[name] = cur
+		}
+		for node.MoveToNext() {
+			log.Debug("parseXmlElementNode found next")
+			name, cur = parseXmlNode(node, cfg)
+			if cur != nil {
+				defined := ret[name]
+				switch {
+				case defined == nil:
+					log.Debug("* parseXmlElementNode Found nil")
+					ret[name] = cur
+				case reflect.ValueOf(defined).Kind() == reflect.Slice:
+					log.Debug("* parseXmlElementNode Found array")
+					ret[name] = append(defined.([]interface{}), cur)
+				default:
+					log.Debug("* parseXmlElementNode Found other %v", reflect.ValueOf(defined).Kind())
+					arr := []interface{}{}
+					arr = append(arr, defined, cur)
+					ret[name] = arr
+				}
+			}
+		}
+		node.MoveToParent()
+	}
+	return ret
+}
+
+//==============================================================================
+// YML
+//==============================================================================
+
 func parseYaml(input string, cfg config) interface{} {
-	// fmt.Println("Inside parseYaml")
 	var yamlData yaml.Node
 	err := yaml.Unmarshal([]byte(input), &yamlData)
 	check(err)
@@ -261,7 +407,6 @@ func parseYaml(input string, cfg config) interface{} {
 	check(err)
 	nodes, err := expr.Find(&yamlData)
 	check(err)
-	// fmt.Println("Nodes:", nodes)
 	if len(nodes) == 1 {
 		return yamlDecode(nodes[0])
 	}
@@ -286,81 +431,9 @@ func yamlDecode(n *yaml.Node) interface{} {
 	panic("Could not decode yaml value")
 }
 
-func xmlDecode(it *xpath.NodeIterator, cfg config) interface{} {
-	ret := []interface{}{}
-	hasMore := true
-	for hasMore {
-		_, val := parseXmlNode(it.Current(), cfg)
-		if val != nil {
-			ret = append(ret, val)
-		}
-		hasMore = it.MoveNext()
-	}
-	switch len(ret) {
-	case 0:
-		return nil
-	case 1:
-		return ret[0]
-	default:
-		return ret
-	}
-}
-
-var textNodeName = "@text"
-
-func parseXmlNode(node xpath.NodeNavigator, cfg config) (string, interface{}) {
-	fmt.Println("parseXmlNode, type =", node.NodeType())
-	switch node.NodeType() {
-	case xpath.TextNode:
-		fmt.Println("parseXmlNode found TextNode, value:", node.Value())
-		if isNormalizedEmpty(node.Value()) {
-			return "", nil
-		}
-		return textNodeName, node.Value()
-	case xpath.ElementNode:
-		name := node.LocalName()
-		k := []map[string]interface{}{}
-		fmt.Println("parseXmlNode found ElementNode, name:", name)
-		k = append(k, parseXmlElementNode(node, cfg))
-		fmt.Println("parseXmlNode ElementNode value", k[0])
-		for node.MoveToNext() {
-			k = append(k, parseXmlElementNode(node, cfg))
-		}
-		if len(k) == 1 {
-			return name, k[0]
-		}
-		return name, k
-	default:
-		return "", nil
-	}
-}
-
-func parseXmlElementNode(node xpath.NodeNavigator, cfg config) map[string]interface{} {
-	ret := map[string]interface{}{}
-	for node.MoveToNextAttribute() {
-		fmt.Println("parseXmlElementNode attribute", node.LocalName(), node.Value())
-		ret[node.LocalName()] = node.Value()
-	}
-	if node.NodeType() == xpath.AttributeNode {
-		node.MoveToParent()
-	}
-	if node.MoveToChild() {
-		name, cur := parseXmlNode(node, cfg)
-		fmt.Println("parseXmlElementNode child", name, cur)
-		if cur != nil {
-			ret[name] = cur
-		}
-		for node.MoveToNext() {
-			fmt.Println("parseXmlElementNode found next")
-			name, cur = parseXmlNode(node, cfg)
-			if cur != nil {
-				ret[name] = cur
-			}
-		}
-		node.MoveToParent()
-	}
-	return ret
-}
+//==============================================================================
+// Common Helpers
+//==============================================================================
 
 var trimable = regexp.MustCompile("\\s|\n|\r|\t")
 
@@ -372,22 +445,8 @@ func isNormalizedEmpty(s string) bool {
 	return normalize(s) == ""
 }
 
-// func later() {
-// 	pathPtr := flag.String("path", "$", "The JsonPath")
-// 	flag.Parse()
-// 	fmt.Println(flag.CommandLine.Args())
-
-// 	d, err := ioutil.ReadAll(os.Stdin)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-
-// 	var jsonData interface{}
-// 	json.Unmarshal(d, &jsonData)
-
-// 	res, err := jsonpath.JsonPathLookup(jsonData, *pathPtr)
-// 	fmt.Println(res)
-
-// 	data, err := json.Marshal(res)
-// 	fmt.Println(string(data))
-// }
+func check(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
