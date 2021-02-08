@@ -1,4 +1,4 @@
-package regex
+package parser
 
 import (
 	"regexp"
@@ -7,15 +7,15 @@ import (
 	"github.com/markoczy/xtools/xparse/def"
 )
 
-type parser struct {
+type regexParser struct {
 	log logger.Logger
 }
 
-func NewParser(log logger.Logger) def.Parser {
-	return &parser{log}
+func NewRegex(log logger.Logger) def.Parser {
+	return &regexParser{log}
 }
 
-func (p *parser) Parse(input string, cfg def.Config) (ret interface{}, err error) {
+func (p *regexParser) Parse(input string, cfg def.Config) (ret interface{}, err error) {
 	filterRx := regexp.MustCompile(cfg.Path)
 	if len(filterRx.SubexpNames()) > 0 {
 		return p.parseRegexWithCaptureGroups(filterRx, input, cfg), nil
@@ -23,7 +23,7 @@ func (p *parser) Parse(input string, cfg def.Config) (ret interface{}, err error
 	return p.parseRegexWithoutCaptureGroups(filterRx, input, cfg), nil
 }
 
-func (p *parser) parseRegexWithoutCaptureGroups(rx *regexp.Regexp, input string, cfg def.Config) []string {
+func (p *regexParser) parseRegexWithoutCaptureGroups(rx *regexp.Regexp, input string, cfg def.Config) []string {
 	r := regexp.MustCompile(`\r?\n`)
 	split := r.Split(input, -1)
 	ret := []string{}
@@ -35,7 +35,7 @@ func (p *parser) parseRegexWithoutCaptureGroups(rx *regexp.Regexp, input string,
 	return ret
 }
 
-func (p *parser) parseRegexWithCaptureGroups(rx *regexp.Regexp, input string, cfg def.Config) []map[string]string {
+func (p *regexParser) parseRegexWithCaptureGroups(rx *regexp.Regexp, input string, cfg def.Config) []map[string]string {
 	r := regexp.MustCompile(`\r?\n`)
 	split := r.Split(input, -1)
 	ret := []map[string]string{}

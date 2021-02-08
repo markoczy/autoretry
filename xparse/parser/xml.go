@@ -1,37 +1,26 @@
-package xml
+package parser
 
 import (
-	"encoding/xml"
 	"fmt"
 	"reflect"
-	"regexp"
 	"strings"
 
 	"github.com/antchfx/xmlquery"
 	"github.com/antchfx/xpath"
+	"github.com/markoczy/xtools/common/helpers"
 	"github.com/markoczy/xtools/common/logger"
 	"github.com/markoczy/xtools/xparse/def"
 )
 
-var trimable = regexp.MustCompile("\\s|\n|\r|\t")
-
-type parser struct {
+type xmlParser struct {
 	log logger.Logger
 }
 
-type formatter struct {
-	log logger.Logger
+func NewXml(log logger.Logger) def.Parser {
+	return &xmlParser{log}
 }
 
-func NewParser(log logger.Logger) def.Parser {
-	return &parser{log}
-}
-
-func NewFormatter(log logger.Logger) def.Formatter {
-	return &formatter{log}
-}
-
-func (p *parser) Parse(input string, cfg def.Config) (ret interface{}, err error) {
+func (p *xmlParser) Parse(input string, cfg def.Config) (ret interface{}, err error) {
 	var doc *xmlquery.Node
 	var expr *xpath.Expr
 	p.log.Debug("Input: %s", input)
@@ -58,7 +47,7 @@ func (p *parser) Parse(input string, cfg def.Config) (ret interface{}, err error
 	return
 }
 
-func (p *parser) decode(it *xpath.NodeIterator, cfg def.Config) interface{} {
+func (p *xmlParser) decode(it *xpath.NodeIterator, cfg def.Config) interface{} {
 	ret := []interface{}{}
 	for it.MoveNext() {
 		_, val := p.parseNode(it.Current(), cfg)
@@ -77,12 +66,12 @@ func (p *parser) decode(it *xpath.NodeIterator, cfg def.Config) interface{} {
 	}
 }
 
-func (p *parser) parseNode(node xpath.NodeNavigator, cfg def.Config) (string, interface{}) {
+func (p *xmlParser) parseNode(node xpath.NodeNavigator, cfg def.Config) (string, interface{}) {
 	p.log.Debug("parseXmlNode, type = %v", node.NodeType())
 	switch node.NodeType() {
 	case xpath.TextNode:
 		p.log.Debug("parseXmlNode found TextNode, value: %s", node.Value())
-		if normalize(node.Value()) == "" {
+		if helpers.Normalize(node.Value()) == "" {
 			// ignore text between nodes
 			return "", nil
 		}
@@ -115,7 +104,7 @@ func (p *parser) parseNode(node xpath.NodeNavigator, cfg def.Config) (string, in
 	}
 }
 
-func (p *parser) parseElementNode(node xpath.NodeNavigator, cfg def.Config) map[string]interface{} {
+func (p *xmlParser) parseElementNode(node xpath.NodeNavigator, cfg def.Config) map[string]interface{} {
 	ret := map[string]interface{}{}
 	for node.MoveToNextAttribute() {
 		p.log.Debug("parseXmlElementNode attribute %s %s", node.LocalName(), node.Value())
@@ -153,18 +142,4 @@ func (p *parser) parseElementNode(node xpath.NodeNavigator, cfg def.Config) map[
 		node.MoveToParent()
 	}
 	return ret
-}
-
-func (f *formatter) Format(val interface{}) (ret string, err error) {
-	var b []byte
-
-	if b, err = xml.MarshalIndent(val, "", "  "); err != nil {
-		return
-	}
-	ret = string(b)
-	return
-}
-
-func normalize(s string) string {
-	return trimable.ReplaceAllString(s, "")
 }

@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"regexp"
 )
 
 type errNoValue error
+
+var trimable = regexp.MustCompile("\\s|\n|\r|\t")
 
 var noValue = errNoValue(fmt.Errorf("No Value"))
 
@@ -33,4 +36,8 @@ func ReadStdin() (string, error) {
 		return "", err
 	}
 	return string(data), nil
+}
+
+func Normalize(s string) string {
+	return trimable.ReplaceAllString(s, "")
 }

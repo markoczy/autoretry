@@ -1,4 +1,4 @@
-package yml
+package parser
 
 import (
 	"fmt"
@@ -9,22 +9,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type parser struct {
-	log logger.Logger
-}
-type formatter struct {
+type ymlParser struct {
 	log logger.Logger
 }
 
-func NewParser(log logger.Logger) def.Parser {
-	return &parser{log}
+func NewYml(log logger.Logger) def.Parser {
+	return &ymlParser{log}
 }
 
-func NewFormatter(log logger.Logger) def.Formatter {
-	return &formatter{log}
-}
-
-func (p *parser) Parse(input string, cfg def.Config) (ret interface{}, err error) {
+func (p *ymlParser) Parse(input string, cfg def.Config) (ret interface{}, err error) {
 	var nodes []*yaml.Node
 	var yamlData yaml.Node
 	if err = yaml.Unmarshal([]byte(input), &yamlData); err != nil {
@@ -44,7 +37,7 @@ func (p *parser) Parse(input string, cfg def.Config) (ret interface{}, err error
 	return
 }
 
-func (p *parser) decode(n *yaml.Node) (ret interface{}, err error) {
+func (p *ymlParser) decode(n *yaml.Node) (ret interface{}, err error) {
 	// TODO could probably distinct numeric and optimize using n.Kind
 	s := ""
 	if err = n.Decode(&s); err == nil {
@@ -62,14 +55,5 @@ func (p *parser) decode(n *yaml.Node) (ret interface{}, err error) {
 		return
 	}
 	err = fmt.Errorf("Could not decode yaml value")
-	return
-}
-
-func (f *formatter) Format(val interface{}) (ret string, err error) {
-	var b []byte
-	if b, err = yaml.Marshal(val); err != nil {
-		return
-	}
-	ret = string(b)
 	return
 }

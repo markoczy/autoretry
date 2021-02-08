@@ -9,11 +9,8 @@ import (
 	"github.com/markoczy/xtools/common/helpers"
 	"github.com/markoczy/xtools/common/logger"
 	"github.com/markoczy/xtools/xparse/def"
-	"github.com/markoczy/xtools/xparse/json"
-	"github.com/markoczy/xtools/xparse/plain"
-	"github.com/markoczy/xtools/xparse/regex"
-	"github.com/markoczy/xtools/xparse/xml"
-	"github.com/markoczy/xtools/xparse/yml"
+	"github.com/markoczy/xtools/xparse/formatter"
+	"github.com/markoczy/xtools/xparse/parser"
 )
 
 var log logger.Logger
@@ -110,8 +107,8 @@ func parseFlags() (def.Config, error) {
 }
 
 func main() {
-	var parser def.Parser
-	var formatter def.Formatter
+	var parserDef def.Parser
+	var formatterDef def.Formatter
 
 	cfg, err := parseFlags()
 	if err != nil {
@@ -126,33 +123,33 @@ func main() {
 	var val interface{}
 	switch cfg.ParseMode {
 	case def.ModePlain:
-		parser = plain.NewParser(log)
+		parserDef = parser.NewPlain(log)
 	case def.ModeRegex:
-		parser = regex.NewParser(log)
+		parserDef = parser.NewRegex(log)
 	case def.ModeJson:
-		parser = json.NewParser(log)
+		parserDef = parser.NewJson(log)
 	case def.ModeXml:
-		parser = xml.NewParser(log)
+		parserDef = parser.NewXml(log)
 	case def.ModeYml:
-		parser = yml.NewParser(log)
+		parserDef = parser.NewYml(log)
 	}
-	val, err = parser.Parse(d, cfg)
+	val, err = parserDef.Parse(d, cfg)
 	check(err)
 
 	s := ""
 	switch cfg.FormatMode {
 	case def.ModeGo:
-		s = fmt.Sprintf("%v", val)
+		formatterDef = formatter.NewDefault(log)
 	case def.ModePlain:
-		formatter = plain.NewFormatter(log)
+		formatterDef = formatter.NewPlain(log)
 	case def.ModeJson:
-		formatter = json.NewFormatter(log)
+		formatterDef = formatter.NewJson(log)
 	case def.ModeXml:
-		formatter = xml.NewFormatter(log)
+		formatterDef = formatter.NewXml(log)
 	case def.ModeYml:
-		formatter = yml.NewFormatter(log)
+		formatterDef = formatter.NewYml(log)
 	}
-	s, err = formatter.Format(val)
+	s, err = formatterDef.Format(val)
 	check(err)
 
 	fmt.Println(s)
