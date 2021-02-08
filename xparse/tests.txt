@@ -1,0 +1,1 @@
+type test.csv | xparse -regex "(?P<col1>\w+);(?P<col2>\w+);(?P<col3>\w+)" -format json
