@@ -9,7 +9,6 @@ import (
 
 	"github.com/antchfx/xmlquery"
 	"github.com/antchfx/xpath"
-	"github.com/markoczy/goutil/log"
 	"github.com/markoczy/xtools/common/logger"
 	"github.com/markoczy/xtools/xparse/def"
 )
@@ -91,7 +90,7 @@ func (p *parser) parseNode(node xpath.NodeNavigator, cfg def.Config) (string, in
 		return cfg.XmlTextField, node.Value()
 	case xpath.RootNode:
 		// TODO root node should not be named
-		log.Debug("parseXmlNode found RootNode")
+		p.log.Debug("parseXmlNode found RootNode")
 		name := "@root"
 		k := []interface{}{}
 		k = append(k, p.parseElementNode(node, cfg))
@@ -133,16 +132,16 @@ func (p *parser) parseElementNode(node xpath.NodeNavigator, cfg def.Config) map[
 			ret[name] = cur
 		}
 		for node.MoveToNext() {
-			log.Debug("parseXmlElementNode found next")
+			p.log.Debug("parseXmlElementNode found next")
 			name, cur = p.parseNode(node, cfg)
 			if cur != nil {
 				defined := ret[name]
 				switch {
 				case defined == nil:
-					log.Debug("* parseXmlElementNode Found nil")
+					p.log.Debug("* parseXmlElementNode Found nil")
 					ret[name] = cur
 				case reflect.ValueOf(defined).Kind() == reflect.Slice:
-					log.Debug("* parseXmlElementNode Found array")
+					p.log.Debug("* parseXmlElementNode Found array")
 					ret[name] = append(defined.([]interface{}), cur)
 				default:
 					p.log.Debug("* parseXmlElementNode Found other %v", reflect.ValueOf(defined).Kind())
