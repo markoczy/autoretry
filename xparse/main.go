@@ -147,6 +147,8 @@ func main() {
 		formatter = plain.NewFormatter(log)
 	case def.ModeJson:
 		formatter = json.NewFormatter(log)
+	case def.ModeXml:
+		formatter = xml.NewFormatter(log)
 	case def.ModeYml:
 		formatter = yml.NewFormatter(log)
 	}

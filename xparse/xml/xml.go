@@ -1,7 +1,7 @@
 package xml
 
 import (
-	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -28,8 +28,7 @@ func NewParser(log logger.Logger) def.Parser {
 }
 
 func NewFormatter(log logger.Logger) def.Formatter {
-	log.Error("XML Formatter not yet implemented")
-	return nil
+	return &formatter{log}
 }
 
 func (p *parser) Parse(input string, cfg def.Config) (ret interface{}, err error) {
@@ -158,7 +157,8 @@ func (p *parser) parseElementNode(node xpath.NodeNavigator, cfg def.Config) map[
 
 func (f *formatter) Format(val interface{}) (ret string, err error) {
 	var b []byte
-	if b, err = json.MarshalIndent(val, "", "  "); err != nil {
+
+	if b, err = xml.MarshalIndent(val, "", "  "); err != nil {
 		return
 	}
 	ret = string(b)
