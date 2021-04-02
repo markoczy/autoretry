@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"regexp"
 
 	"github.com/markoczy/xtools/common/logger"
 	"github.com/markoczy/xtools/xparse/def"
@@ -18,22 +19,37 @@ func NewYml(log logger.Logger) def.Parser {
 }
 
 func (p *ymlParser) Parse(input string, cfg def.Config) (ret interface{}, err error) {
-	var nodes []*yaml.Node
-	var yamlData yaml.Node
-	if err = yaml.Unmarshal([]byte(input), &yamlData); err != nil {
-		p.log.Error("Failed to umarshall YML")
+	var expr *yamlpath.Path
+	r := regexp.MustCompile("\r?\n---\r?\n")
+	split := r.Split(input, -1)
+	// split := strings.Split(input, "\n---\n")
+	arr := []interface{}{}
+	for _, v := range split {
+		var nodes []*yaml.Node
+		var yamlData yaml.Node
+		if err = yaml.Unmarshal([]byte(v), &yamlData); err != nil {
+			p.log.Error("Failed to umarshal YML")
+			return
+		}
+		expr, err = yamlpath.NewPath(cfg.Path)
+		if nodes, err = expr.Find(&yamlData); err != nil {
+			p.log.Error("Failed to apply Yamlpath expression")
+			return
+		}
+		for _, node := range nodes {
+			var dec interface{}
+			if dec, err = p.decode(node); err != nil {
+				return
+			}
+			arr = append(arr, dec)
+		}
+	}
+
+	if len(arr) == 1 {
+		ret = arr[0]
 		return
 	}
-	expr, err := yamlpath.NewPath(cfg.Path)
-	if nodes, err = expr.Find(&yamlData); err != nil {
-		p.log.Error("Failed to apply Yamlpath expression")
-		return
-	}
-	if len(nodes) == 1 {
-		ret, err = p.decode(nodes[0])
-		return
-	}
-	ret = nodes
+	ret = arr
 	return
 }
 

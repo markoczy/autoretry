@@ -11,6 +11,7 @@ const (
 	ModeXml
 	ModeYml
 	ModeGo
+	ModeJprop
 )
 
 type Parser interface {

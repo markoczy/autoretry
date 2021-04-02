@@ -1,5 +1,14 @@
-address: 
-    street: 123 E 3rd St
-    city: Denver
-    state: CO
-    zip: 81526
+logging:
+  file:
+    name: myapplication.log
+---
+spring:
+  config:
+    activate:
+      on-profile: staging
+  datasource:
+    password: 'password'
+    url: jdbc:h2:staging
+    username: SA
+bael:
+  property: stagingValue

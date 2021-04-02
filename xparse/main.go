@@ -23,7 +23,7 @@ func parseFlags() (def.Config, error) {
 	jpathEx := flags.NewSwitchable("$")
 	xpathEx := flags.NewSwitchable("/")
 	ypathEx := flags.NewSwitchable("$")
-	format := flags.NewEnum([]string{"go", "json", "xml", "yml", "yaml", "plain"}, "plain")
+	format := flags.NewEnum([]string{"go", "json", "xml", "yml", "yaml", "plain", "jprop"}, "plain")
 
 	xmlTextFieldPtr := flag.String("xml-text-field", "@text", "(Only applies when parsing xml) Field name for inner text when parsing XML to map-like structure")
 	xmlChildPrefixPtr := flag.String("xml-child-prefix", "", "(Only applies when parsing xml) Prefix for children when XML to map-like structure")
@@ -33,6 +33,7 @@ func parseFlags() (def.Config, error) {
 	flag.Var(jpathEx, "json", "Switch to JSON mode and input a JsonPath expression")
 	flag.Var(xpathEx, "xml", "Switch to XML mode and input a XPath expression")
 	flag.Var(ypathEx, "yaml", "Switch to YAML mode and input a XPath expression")
+	flag.Var(ypathEx, "yml", "Switch to YAML mode and input a XPath expression")
 	flag.Var(format, "format", "Format parsed value to another output, possible values are 'go', 'json', 'xml', 'yml', 'plain'")
 
 	logFactory.InitFlags()
@@ -81,6 +82,8 @@ func parseFlags() (def.Config, error) {
 		ret.FormatMode = def.ModeYml
 	case "go":
 		ret.FormatMode = def.ModeGo
+	case "jprop":
+		ret.FormatMode = def.ModeJprop
 	default:
 		ret.FormatMode = def.ModePlain
 	}
@@ -148,6 +151,8 @@ func main() {
 		formatterDef = formatter.NewXml(log)
 	case def.ModeYml:
 		formatterDef = formatter.NewYml(log)
+	case def.ModeJprop:
+		formatterDef = formatter.NewJprop(log)
 	}
 	s, err = formatterDef.Format(val)
 	check(err)
