@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -34,8 +36,8 @@ func initFlags() {
 	folderPtr := flag.String("folder", ".", "the path to serve")
 	modePtr := flag.String("mode", "fileserver", "The server mode ('fileserver', 'apitrace'")
 	httpsPtr := flag.Bool("tls", false, "Serve as HTTPS (i.e. TLS)")
-	certPtr := flag.String("cert", "server.crt", "Path to TLS Certificate")
-	certKeyPtr := flag.String("cert-key", "server.key", "Path to TLS Certificate key")
+	certPtr := flag.String("cert", ":exec/server.crt", "Path to TLS Certificate (use ':exec' to point to the executable path)")
+	certKeyPtr := flag.String("cert-key", ":exec/server.key", "Path to TLS Certificate key (use ':exec' to point to the executable path)")
 
 	flag.Parse()
 
@@ -62,6 +64,8 @@ func initFlags() {
 		}
 	}
 	host, folder, https, cert, certKey = *hostPtr, *folderPtr, *httpsPtr, *certPtr, *certKeyPtr
+	cert = replacePath(cert)
+	certKey = replacePath(certKey)
 }
 
 func main() {
@@ -114,4 +118,14 @@ func main() {
 
 func enableCors(w *http.ResponseWriter) {
 	(*w).Header().Set("Access-Control-Allow-Origin", "*")
+}
+
+func replacePath(s string) string {
+	var dirAbsPath string
+	ex, err := os.Executable()
+	if err != nil {
+		panic(fmt.Errorf("Could not replace path: %w", err))
+	}
+	dirAbsPath = filepath.Dir(ex)
+	return strings.ReplaceAll(s, ":exec", dirAbsPath)
 }
