@@ -8,5 +8,6 @@ require (
 	github.com/atotto/clipboard v0.1.4
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
 	github.com/vmware-labs/yaml-jsonpath v0.0.0-20200625154356-ea62dcd51756
+	golang.org/x/crypto v0.0.0-20210415154028-4f45737414dc
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 )
