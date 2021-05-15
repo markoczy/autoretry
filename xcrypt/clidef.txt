@@ -1,0 +1,35 @@
+CLI Definition:
+
+-parse
+
+default|binary(default)|hex|base64
+
+-hash
+
+sha|sha1|sha2(default)|sha3|sha512?|shake|shake128|shake256
+
+-output-size int
+
+-key string
+
+-encrypt
+
+aes128|aes192|aes256|bcrypt|..
+
+-key string
+
+-hash-key bool
+
+-format default|hex|base64|binary(default)
+
+-file string
+
+-cipher-mode gcm|ctr
+
+-iv default|auto(default)|key|hashed|none
+
+-iv-value string
+
+-nonce default|auto(default)|key|hashed|none
+
+-nonce-value string
